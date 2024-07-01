@@ -1,18 +1,11 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use base64::{engine::general_purpose, Engine as _};
-use image::DynamicImage;
-use serde::{Deserialize, Serialize};
-use tokio;
+use image;
+use rayon::prelude::*;
+use std::{fs, io::Write, path::Path};
+use tauri::Window;
 use webp::Encoder;
-
-#[derive(Serialize, Deserialize)]
-struct ImageTaskData {
-    file_name: String,
-    content: String,
-    quality: f32,
-}
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct ImageResultData {
@@ -21,24 +14,43 @@ struct ImageResultData {
 }
 
 #[tauri::command]
-async fn add_compress_image_task(task: ImageTaskData, window: tauri::Window) -> Result<(), String> {
-    tokio::spawn(async move {
-        let result = get_image_compression_result(&task);
-        match result {
-            Ok(compressed_image) => {
-                // 使用 Tauri 的 emit 将压缩后的图片发送到前端
-                if let Err(e) = window.emit("imageProcessed", &compressed_image) {
-                    eprintln!("Failed to emit imageProcessed event: {}", e);
-                }
+async fn add_compress_path_list(
+    path_list: Vec<String>,
+    quality: f32,
+    output_path: String,
+    window: Window,
+) -> Result<(), ()> {
+    fs::create_dir_all(&output_path).map_err(|_| ())?;
+    path_list
+        .par_iter()
+        .for_each(|path| match compress_and_encode_image(path, quality) {
+            Ok(data) => {
+                let output_file_path = Path::new(&output_path)
+                    .join(
+                        Path::new(path)
+                            .file_stem()
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .to_owned(),
+                    )
+                    .with_extension("webp");
+                let mut output_file = fs::File::create(output_file_path).unwrap();
+                output_file.write_all(&data).unwrap();
+                window.emit("singleTaskCompleted", {}).unwrap();
             }
-            Err(e) => {
-                eprintln!("Error processing image: {}", e);
-                // 可以考虑向前端发送错误信息
-            }
-        }
-    });
-
+            Err(e) => eprintln!("Error processing image: {}", e),
+        });
     Ok(())
+}
+
+fn compress_and_encode_image(path: &String, quality: f32) -> Result<Vec<u8>, String> {
+    let img = image::open(path).map_err(|e| e.to_string())?;
+    let rgba_image = img.to_rgba8();
+    let width = img.width();
+    let height = img.height();
+    let webp_data = Encoder::from_rgba(&rgba_image, width, height).encode(quality);
+    Ok(webp_data.to_vec())
 }
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -47,38 +59,9 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-fn encode_image_to_webp(img: &DynamicImage, quality: f32) -> Result<Vec<u8>, String> {
-    let rgba_image = img.to_rgba8();
-    let encoder = Encoder::from_rgba(&rgba_image, img.width(), img.height());
-    Ok(encoder.encode(quality).to_vec())
-}
-
-fn get_image_compression_result(input: &ImageTaskData) -> Result<ImageResultData, String> {
-    // 解码 Base64 编码的图片内容
-    let image_data = general_purpose::STANDARD
-        .decode(&input.content)
-        .map_err(|e| format!("Failed to decode Base64 content: {}", e))?;
-
-    // 加载图片
-    let img = image::load_from_memory(&image_data)
-        .map_err(|e| format!("Failed to load image from bytes: {}", e))?;
-
-    // 压缩并编码图片为 WebP
-    let compressed_image = encode_image_to_webp(&img, input.quality)?;
-
-    // 将压缩后的图片数据编码为 Base64
-    let base64_encoded_image = general_purpose::STANDARD.encode(&compressed_image);
-
-    // 创建返回结果
-    Ok(ImageResultData {
-        file_name: input.file_name.clone(),
-        content: base64_encoded_image,
-    })
-}
-
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![greet, add_compress_image_task])
+        .invoke_handler(tauri::generate_handler![greet, add_compress_path_list])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

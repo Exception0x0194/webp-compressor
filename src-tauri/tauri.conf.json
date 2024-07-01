@@ -15,14 +15,16 @@
       "shell": {
         "all": false,
         "open": true
+      },
+      "dialog": {
+        "all": true
       }
     },
     "windows": [
       {
         "title": "WebP Compressor",
         "width": 600,
-        "height": 700,
-        "fileDropEnabled": false
+        "height": 700
       }
     ],
     "security": {
