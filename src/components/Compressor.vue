@@ -13,7 +13,7 @@
 
         <div class="form-item">
             <el-button @click="clearFiles" :icon="Delete">清空文件</el-button>
-            <el-button @click="compressImagesInBatches" :icon="Download">打包下载</el-button>
+            <el-button @click="compressImagesWithInvokes" :icon="Download">打包下载</el-button>
         </div>
 
         <div class="form-item form-item-slider">
@@ -46,6 +46,10 @@ import { DocumentAdd, Delete, Download } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/tauri";
 import { createWriteStream } from 'streamsaver';
 import { ZipWriter, BlobReader } from '@zip.js/zip.js';
+import { listen } from '@tauri-apps/api/event';
+
+interface imageTaskData { file_name: string, content: string, quality: number };
+interface imageResultData { file_name: string, content: string };
 
 const files = ref<File[]>([]);
 const loadInfo = ref({ isLoading: false, max: 100, current: 0, startTime: new Date() });
@@ -62,6 +66,22 @@ const totalSizeMB = computed(() => {
 const progressPercentage = computed(() => {
     return (loadInfo.value.current * 100 / loadInfo.value.max).toFixed(2);
 })
+
+let existingFilenames = {} as { [key: string]: boolean };
+
+function getUniqueFilename(originalName: string) {
+    let baseName = originalName.replace(/\.[^/.]+$/, ""); // 移除扩展名
+    let counter = 1;
+    let newName = `${baseName}.webp`;
+
+    while (existingFilenames[newName]) {
+        newName = `${baseName}-${counter}.webp`;
+        counter++;
+    }
+
+    existingFilenames[newName] = true; // 标记这个新文件名已经被使用
+    return newName;
+}
 
 async function handleUpload(file: File) {
     let fileExt = file.name.split(".").pop()!.toLowerCase();
@@ -84,7 +104,7 @@ function clearFiles() {
     });
 }
 
-async function compressImagesInBatches() {
+async function compressImagesWithInvokes() {
     if (files.value.length === 0) {
         ElMessage({ message: "没有文件可以处理", type: "warning" });
         return;
@@ -95,6 +115,7 @@ async function compressImagesInBatches() {
     loadInfo.value.current = 0;
     loadInfo.value.startTime = new Date();
 
+    existingFilenames = {};
     // 创建 ZIP 文件的写入流
     const fileStream = createWriteStream("compressed_images.zip");
     const writer = fileStream.getWriter();
@@ -107,37 +128,51 @@ async function compressImagesInBatches() {
         }
     }));
 
-    try {
-        for (let i = 0; i < files.value.length; i += batchSize.value) {
-            const batch = files.value.slice(i, i + batchSize.value);
-            const fileData = await Promise.all(batch.map(file => fileToBase64(file)));
+    let activeTasks = 0;
+    let index = 0;  // 当前处理的文件索引
+    const promises = <Promise<void>[]>[];  // 用于存储 Promise 的数组
 
-            // 调用后端压缩图片
-            const compressedImages = await invoke('compress_and_zip_images', {
-                images: fileData,
-                quality: quality.value
-            }) as {
-                filename: string,
-                content: string
-            }[];
+    // 设置事件监听器
+    const unlisten = await listen('imageProcessed', async event => {
+        const { file_name, content } = event.payload as imageResultData;
+        const unique_file_name = getUniqueFilename(file_name);
+        const blob = base64toBlob(content, 'image/webp');
+        await zipWriter.add(unique_file_name, new BlobReader(blob));
+        loadInfo.value.current++;
+        activeTasks--;
+        processNextBatch();  // 处理下一批任务
+    });
 
-            // 将压缩后的图片添加到 ZIP 包中
-            for (const image of compressedImages) {
-                const blob = base64toBlob(image.content, 'image/webp');
-                await zipWriter.add(image.filename + ".webp", new BlobReader(blob));
-            }
-
-            loadInfo.value.current += batch.length;
-        }
-
-        await zipWriter.close();
-        const end = new Date();
-        ElMessage({ message: `所有图片处理完成：${end.getTime() - loadInfo.value.startTime.getTime()} ms`, type: 'success' });
-    } catch (error) {
-        ElMessage({ message: `处理过程中出错：${error}`, type: "error" });
-    } finally {
-        loadInfo.value.isLoading = false;
+    // 定义任务处理函数
+    async function processTask(file: File) {
+        const fileData = await fileToBase64(file, quality.value);
+        invoke("add_compress_image_task", { task: fileData });
     }
+
+    // 定义批处理启动函数
+    function processNextBatch() {
+        while (activeTasks < batchSize.value && index < files.value.length) {
+            promises.push(processTask(files.value[index]));
+            activeTasks++;
+            index++;
+        }
+        if (index >= files.value.length) {  // 所有任务都已启动
+            Promise.all(promises).then(() => {
+                zipWriter.close().then(() => {
+                    unlisten();  // 取消监听
+                    loadInfo.value.isLoading = false;
+                    const end = new Date();
+                    ElMessage({ message: `所有图片处理完成：${end.getTime() - loadInfo.value.startTime.getTime()} ms`, type: "success" })
+                });
+            }).catch(error => {
+                ElMessage({ message: "处理图像时出错：" + error, type: "error" });
+                loadInfo.value.isLoading = false;
+            });
+        }
+    }
+
+    // 启动第一批任务
+    processNextBatch();
 }
 
 // 辅助函数：将 Base64 字符串转换为 Blob
@@ -159,7 +194,7 @@ function base64toBlob(base64: string, mimeType: string) {
 }
 
 // 辅助函数：将文件转换为字节数组的编码Base64
-function fileToBase64(file: File): Promise<{ filename: string, content: string }> {
+function fileToBase64(file: File, quality: number): Promise<imageTaskData> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -172,7 +207,7 @@ function fileToBase64(file: File): Promise<{ filename: string, content: string }
             const base64String = btoa(binaryString);
 
             // 解决返回文件名和Base64编码的内容
-            resolve({ filename: file.name, content: base64String });
+            resolve({ file_name: file.name, content: base64String, quality: quality });
         };
         reader.onerror = () => {
             reject(new Error('File reading failed'));

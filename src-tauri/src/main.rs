@@ -3,38 +3,42 @@
 
 use base64::{engine::general_purpose, Engine as _};
 use image::DynamicImage;
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use tokio;
 use webp::Encoder;
 
 #[derive(Serialize, Deserialize)]
-struct ImageData {
-    filename: String,
-    content: String, // 这里将接收Base64编码的字符串
+struct ImageTaskData {
+    file_name: String,
+    content: String,
+    quality: f32,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct ImageResultData {
+    file_name: String,
+    content: String,
 }
 
 #[tauri::command]
-fn compress_and_zip_images(images: Vec<ImageData>, quality: f32) -> Result<Vec<ImageData>, String> {
-    let converted_images: Result<Vec<ImageData>, String> = images
-        .par_iter() // 使用并行迭代器
-        .map(|image| {
-            let content = general_purpose::STANDARD
-                .decode(&image.content)
-                .map_err(|e| e.to_string())?;
-            let img = image::load_from_memory(&content).map_err(|e| e.to_string())?;
-            let webp_bytes = encode_image_to_webp(&img, quality)?;
-            let encoded_webp = general_purpose::STANDARD.encode(webp_bytes);
-            Ok(ImageData {
-                filename: image.filename.clone(),
-                content: encoded_webp,
-            })
-        })
-        .collect();
+async fn add_compress_image_task(task: ImageTaskData, window: tauri::Window) -> Result<(), String> {
+    tokio::spawn(async move {
+        let result = get_image_compression_result(&task);
+        match result {
+            Ok(compressed_image) => {
+                // 使用 Tauri 的 emit 将压缩后的图片发送到前端
+                if let Err(e) = window.emit("imageProcessed", &compressed_image) {
+                    eprintln!("Failed to emit imageProcessed event: {}", e);
+                }
+            }
+            Err(e) => {
+                eprintln!("Error processing image: {}", e);
+                // 可以考虑向前端发送错误信息
+            }
+        }
+    });
 
-    match converted_images {
-        Ok(images) => Ok(images),
-        Err(e) => Err(e),
-    }
+    Ok(())
 }
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -49,9 +53,32 @@ fn encode_image_to_webp(img: &DynamicImage, quality: f32) -> Result<Vec<u8>, Str
     Ok(encoder.encode(quality).to_vec())
 }
 
+fn get_image_compression_result(input: &ImageTaskData) -> Result<ImageResultData, String> {
+    // 解码 Base64 编码的图片内容
+    let image_data = general_purpose::STANDARD
+        .decode(&input.content)
+        .map_err(|e| format!("Failed to decode Base64 content: {}", e))?;
+
+    // 加载图片
+    let img = image::load_from_memory(&image_data)
+        .map_err(|e| format!("Failed to load image from bytes: {}", e))?;
+
+    // 压缩并编码图片为 WebP
+    let compressed_image = encode_image_to_webp(&img, input.quality)?;
+
+    // 将压缩后的图片数据编码为 Base64
+    let base64_encoded_image = general_purpose::STANDARD.encode(&compressed_image);
+
+    // 创建返回结果
+    Ok(ImageResultData {
+        file_name: input.file_name.clone(),
+        content: base64_encoded_image,
+    })
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![greet, compress_and_zip_images])
+        .invoke_handler(tauri::generate_handler![greet, add_compress_image_task])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
