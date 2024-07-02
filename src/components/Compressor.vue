@@ -33,13 +33,20 @@
         <div class="form-item" v-if="loadInfo.isLoading">
             <el-progress :percentage="progressPercentage" />
         </div>
+
+        <div class="form-item" v-if="loadInfo.isLoading">
+            <span>处理文件：{{ compressedInfo.file_name }}</span>
+            <br>
+            <span>{{ compressedInfo.original_size.toFixed(2) }}→{{ compressedInfo.compressed_size.toFixed(2)
+                }}（{{ compressionRate }}）</span>
+        </div>
     </div>
 </template>
 
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { ElMessage } from "element-plus";
+import { ElMessage, ElNotification } from "element-plus";
 import { DocumentAdd, Delete, Download, FolderAdd } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/tauri";
 import { open } from '@tauri-apps/api/dialog';
@@ -49,6 +56,7 @@ import { appWindow } from "@tauri-apps/api/window";
 
 const files = ref<string[]>([]);
 const loadInfo = ref({ isLoading: false, max: 100, current: 0, startTime: new Date() });
+const compressedInfo = ref({ file_name: "", original_size: 0.0, compressed_size: 0.0 });
 const quality = ref(90);
 const outputPath = ref("");
 
@@ -56,6 +64,14 @@ const supportedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 
 const progressPercentage = computed(() => {
     return parseFloat((loadInfo.value.current * 100 / loadInfo.value.max).toFixed(2));
+})
+
+const compressionRate = computed(() => {
+    if (compressedInfo.value.original_size === 0) {
+        return "0.00 %";
+    } else {
+        return (compressedInfo.value.compressed_size * 100 / compressedInfo.value.original_size).toFixed(2) + ' %';
+    }
 })
 
 async function handleUpload() {
@@ -96,6 +112,10 @@ async function selectOutputFolder() {
 }
 
 async function compressImagesWithInvokes() {
+    if (loadInfo.value.isLoading) {
+        ElMessage({ message: "正在处理图片，请勿重复操作", type: "error" });
+        return;
+    }
     if (files.value.length === 0) {
         ElMessage({ message: "没有文件可以处理", type: "warning" });
         return;
@@ -109,12 +129,22 @@ async function compressImagesWithInvokes() {
     loadInfo.value.max = files.value.length;
     loadInfo.value.current = 0;
     loadInfo.value.startTime = new Date();
+    compressedInfo.value = { file_name: "", original_size: 0.0, compressed_size: 0.0 };
 
-    const unlisten = await listen('singleTaskCompleted', async () => {
+    let totalOriginalSize = 0;
+    let totalCompressedSize = 0;
+
+    const unlisten = await listen('singleTaskCompleted', async event => {
+        const resultInfo = event.payload as { file_name: string, original_size: number, compressed_size: number };
+        compressedInfo.value = resultInfo;
+        totalOriginalSize += resultInfo.original_size;
+        totalCompressedSize += resultInfo.compressed_size;
         loadInfo.value.current++;
         if (loadInfo.value.current === loadInfo.value.max) {
             const end = new Date();
-            ElMessage({ message: `全部图像处理完毕：${end.getTime() - loadInfo.value.startTime.getTime()} ms`, type: "success" });
+            ElNotification({
+                message: `全部文件处理完毕<br>用时：${end.getTime() - loadInfo.value.startTime.getTime()} ms<br>压缩率：${(totalCompressedSize * 100 / totalOriginalSize).toFixed(2)} %`, type: "success", dangerouslyUseHTMLString: true
+            });
             loadInfo.value.isLoading = false;
             unlisten();
         }

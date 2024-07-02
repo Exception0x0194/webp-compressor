@@ -3162,6 +3162,7 @@ version = "0.0.0"
 dependencies = [
  "image 0.25.1",
  "rayon",
+ "serde",
  "serde_json",
  "tauri",
  "tauri-build",
