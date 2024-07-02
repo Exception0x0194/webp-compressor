@@ -53,7 +53,6 @@ import { open } from '@tauri-apps/api/dialog';
 import { listen } from '@tauri-apps/api/event';
 import { appWindow } from "@tauri-apps/api/window";
 
-
 const files = ref<string[]>([]);
 const loadInfo = ref({ isLoading: false, max: 100, current: 0, startTime: new Date() });
 const compressedInfo = ref({ file_name: "", original_size: 0.0, compressed_size: 0.0 });
@@ -109,6 +108,7 @@ async function selectOutputFolder() {
         return;
     }
     outputPath.value = path;
+    invoke('set_output_path', { outputPath: path })
 }
 
 async function compressImagesWithInvokes() {
@@ -164,6 +164,8 @@ onMounted(async () => {
             ElMessage({ message: `添加了 ${filteredPaths.length} 份文件`, type: "success" });
         }
     });
+    const path = await invoke('get_output_path') as string;
+    outputPath.value = path;
 })
 </script>
 

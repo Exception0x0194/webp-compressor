@@ -14,6 +14,11 @@ struct ImageResultData {
     compressed_size: usize,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+struct AppConfig {
+    output_path: Option<String>,
+}
+
 #[tauri::command]
 async fn add_compress_path_list(
     path_list: Vec<String>,
@@ -45,6 +50,36 @@ async fn add_compress_path_list(
     Ok(())
 }
 
+#[tauri::command]
+fn set_output_path(app_handle: tauri::AppHandle, output_path: String) -> Result<(), String> {
+    let config_dir = app_handle.path_resolver().app_config_dir().unwrap();
+    std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?; // 确保配置目录存在
+    let config_file_path = config_dir.join("config.json");
+
+    let config = AppConfig {
+        output_path: Some(output_path),
+    };
+
+    let config_data = serde_json::to_string(&config).map_err(|e| e.to_string())?;
+    std::fs::write(config_file_path, config_data).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn get_output_path(app_handle: tauri::AppHandle) -> Result<String, String> {
+    let config_dir = app_handle.path_resolver().app_config_dir().unwrap();
+    let config_file_path = config_dir.join("config.json");
+
+    if config_file_path.exists() {
+        let config_data = std::fs::read_to_string(config_file_path).map_err(|e| e.to_string())?;
+        let config: AppConfig = serde_json::from_str(&config_data).map_err(|e| e.to_string())?;
+        Ok(config.output_path.unwrap_or_default())
+    } else {
+        Ok(String::new()) // 如果配置文件不存在，返回空字符串
+    }
+}
+
 fn compress_and_encode_image(path: &str, quality: f32) -> Result<(Vec<u8>, usize, usize), String> {
     let img = image::open(path).map_err(|e| e.to_string())?;
     let rgba_image = img.to_rgba8();
@@ -70,7 +105,12 @@ fn greet(name: &str) -> String {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![greet, add_compress_path_list])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            add_compress_path_list,
+            get_output_path,
+            set_output_path
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
