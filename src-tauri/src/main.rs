@@ -3,7 +3,11 @@
 
 use image;
 use rayon::prelude::*;
-use std::{fs, io::Write, path::Path};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
 use tauri::Window;
 use webp::Encoder;
 
@@ -48,6 +52,60 @@ async fn add_compress_path_list(
         }
     });
     Ok(())
+}
+
+#[tauri::command]
+fn get_folder_file_paths(dir_path: String) -> Result<Vec<String>, String> {
+    // 定义支持的图片文件扩展名
+    let supported_extensions = ["png", "jpg", "jpeg", "gif", "webp"];
+    let mut file_paths = Vec::new();
+
+    // 递归地搜索目录
+    fn search_dir(
+        path: PathBuf,
+        file_paths: &mut Vec<String>,
+        supported_extensions: &[&str],
+    ) -> Result<(), String> {
+        // 检查路径是否真的是一个目录
+        if !path.is_dir() {
+            return Err(format!("{} is not a directory", path.to_string_lossy()));
+        }
+
+        match fs::read_dir(path) {
+            Ok(entries) => {
+                for entry in entries {
+                    let entry = entry.map_err(|e| e.to_string())?;
+                    let path = entry.path();
+                    if path.is_dir() {
+                        // 递归调用处理子目录
+                        search_dir(path, file_paths, supported_extensions)?;
+                    } else {
+                        // 检查是否是文件并且扩展名是否在支持列表中
+                        if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                            if supported_extensions.contains(&ext.to_lowercase().as_str()) {
+                                // 将路径转换为字符串
+                                match path.to_str() {
+                                    Some(path_str) => file_paths.push(path_str.to_string()),
+                                    None => {
+                                        return Err("Failed to convert path to string".to_string())
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => return Err(format!("Failed to read directory: {}", e)),
+        }
+
+        Ok(())
+    }
+
+    // 开始递归搜索
+    let start_path = PathBuf::from(dir_path);
+    search_dir(start_path, &mut file_paths, &supported_extensions)?;
+
+    Ok(file_paths)
 }
 
 #[tauri::command]
@@ -109,7 +167,8 @@ fn main() {
             greet,
             add_compress_path_list,
             get_output_path,
-            set_output_path
+            set_output_path,
+            get_folder_file_paths
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

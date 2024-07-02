@@ -1,12 +1,20 @@
 <template>
     <div>
-        <div class="form-item">
-            <el-upload drag multiple @click="handleUpload" disabled>
+        <div class="form-item-upload">
+            <el-upload class="upload-files" drag @click="handleFileUpload" disabled style="margin-right: 10px">
                 <el-icon class="el-icon--upload">
                     <DocumentAdd />
                 </el-icon>
                 <div class="el-upload__text">
-                    拖拽图片到此处或<em>点此上传图片</em>
+                    拖拽图片到窗口或<em>点此上传图片</em>
+                </div>
+            </el-upload>
+            <el-upload class="upload-folder" drag @click="handleFolderUpload" disabled style="margin-left: 10px">
+                <el-icon class="el-icon--upload">
+                    <FolderAdd />
+                </el-icon>
+                <div class="el-upload__text">
+                    <em>点此上传文件夹内容</em>
                 </div>
             </el-upload>
         </div>
@@ -73,7 +81,7 @@ const compressionRate = computed(() => {
     }
 })
 
-async function handleUpload() {
+async function handleFileUpload() {
     const paths = await open({
         multiple: true,
         title: "Select Images",
@@ -85,6 +93,22 @@ async function handleUpload() {
         ElMessage({ message: `添加了 ${paths.length} 份文件`, type: "success" });
     } else {
         ElMessage({ message: "未选择任何文件", type: "info" });
+    }
+    return false;
+}
+
+async function handleFolderUpload() {
+    const dirPath = await open({
+        directory: true,
+        title: "Select Folder"
+    });
+
+    if (dirPath && dirPath.length !== 1) {
+        const paths = await invoke('get_folder_file_paths', { dirPath: dirPath }) as string[];
+        files.value.push(...paths);
+        ElMessage({ message: `添加了 ${paths.length} 份文件`, type: "success" });
+    } else {
+        ElMessage({ message: "未选择文件夹", type: "info" });
     }
     return false;
 }
@@ -170,9 +194,13 @@ onMounted(async () => {
 </script>
 
 
-<style>
+<style scoped>
 .form-item {
     margin: 10px;
+}
+
+.form-item-upload {
+    display: inline-flex;
 }
 
 .form-item-slider {
