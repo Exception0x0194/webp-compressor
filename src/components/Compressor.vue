@@ -1,59 +1,52 @@
 <template>
-    <div style="display:flex;flex-direction: row">
-        <div>
-            <div class="form-item-upload">
-                <el-upload class="upload-files" drag @click="handleFileUpload" disabled style="margin-right: 10px">
-                    <el-icon class="el-icon--upload">
-                        <DocumentAdd />
-                    </el-icon>
-                    <div class="el-upload__text">
-                        拖拽图片到窗口或<em>点此上传图片</em>
-                    </div>
-                </el-upload>
-                <el-upload class="upload-folder" drag @click="handleFolderUpload" disabled style="margin-left: 10px">
-                    <el-icon class="el-icon--upload">
-                        <FolderAdd />
-                    </el-icon>
-                    <div class="el-upload__text">
-                        <em>点此上传文件夹内容</em>
-                    </div>
-                </el-upload>
-            </div>
-
-            <div class="form-item">
-                <el-button @click="clearFiles" :icon="Delete">清空文件</el-button>
-                <el-button @click="selectOutputFolder" :icon="FolderAdd">指定输出目录</el-button>
-                <el-button @click="compressImagesWithInvokes" :icon="Download">压缩并保存</el-button>
-            </div>
-
-            <div class="form-item">
-                <p>输出目录：{{ outputPath.length === 0 ? "尚未选择" : outputPath }}</p>
-            </div>
-
-            <div class="form-item form-item-slider">
-                <span class="form-label">压缩品质</span>
-                <el-slider v-model="quality" :max="100" :min="0" :step="5"></el-slider>
-            </div>
-
-            <div class="form-item">
-                <p>待处理文件数量：{{ files.length }}</p>
-            </div>
-
-            <div class="form-item" v-if="loadInfo.isLoading">
-                <el-progress :percentage="progressPercentage" />
-            </div>
-
-            <div class="form-item" v-if="loadInfo.isLoading">
-                <span>处理文件：{{ compressedInfo.file_name }}</span>
-                <br>
-                <span>{{ compressedInfo.original_size.toFixed(2) }}→{{ compressedInfo.compressed_size.toFixed(2)
-                    }}（{{ compressionRate }}）</span>
-            </div>
+    <div>
+        <div class="form-item-upload">
+            <el-upload class="upload-files" drag @click="handleFileUpload" disabled style="margin-right: 10px">
+                <el-icon class="el-icon--upload">
+                    <DocumentAdd />
+                </el-icon>
+                <div class="el-upload__text">
+                    拖拽图片到窗口或<em>点此上传图片</em>
+                </div>
+            </el-upload>
+            <el-upload class="upload-folder" drag @click="handleFolderUpload" disabled style="margin-left: 10px">
+                <el-icon class="el-icon--upload">
+                    <FolderAdd />
+                </el-icon>
+                <div class="el-upload__text">
+                    <em>点此上传文件夹内容</em>
+                </div>
+            </el-upload>
         </div>
-        <div style="margin-left: 20px;">
-            <el-table :data="fileData" stripe style="width: 100%" height="500">
-                <el-table-column prop="filename" label="File Name" width="250" />
-            </el-table>
+
+        <div class="form-item">
+            <el-button @click="clearFiles" :icon="Delete">清空文件</el-button>
+            <el-button @click="selectOutputFolder" :icon="FolderAdd">指定输出目录</el-button>
+            <el-button @click="compressImagesWithInvokes" :icon="Download">压缩并保存</el-button>
+        </div>
+
+        <div class="form-item">
+            <p>输出目录：{{ outputPath.length === 0 ? "尚未选择" : outputPath }}</p>
+        </div>
+
+        <div class="form-item form-item-slider">
+            <span class="form-label">压缩品质</span>
+            <el-slider v-model="quality" :max="100" :min="0" :step="5"></el-slider>
+        </div>
+
+        <div class="form-item">
+            <p>待处理文件数量：{{ files.length }}</p>
+        </div>
+
+        <div class="form-item" v-if="loadInfo.isLoading">
+            <el-progress :percentage="progressPercentage" />
+        </div>
+
+        <div class="form-item" v-if="loadInfo.isLoading">
+            <span>处理文件：{{ compressedInfo.file_name }}</span>
+            <br>
+            <span>{{ compressedInfo.original_size.toFixed(2) }}→{{ compressedInfo.compressed_size.toFixed(2)
+                }}（{{ compressionRate }}）</span>
         </div>
     </div>
 </template>
@@ -73,7 +66,6 @@ const loadInfo = ref({ isLoading: false, max: 100, current: 0, startTime: new Da
 const compressedInfo = ref({ file_name: "", original_size: 0.0, compressed_size: 0.0 });
 const quality = ref(90);
 const outputPath = ref("");
-const fileData = ref([{ filename: "Example" }]);
 
 const supportedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 
