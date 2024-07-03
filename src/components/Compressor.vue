@@ -66,7 +66,6 @@ const loadInfo = ref({ isLoading: false, max: 100, current: 0, startTime: new Da
 const compressedInfo = ref({ file_name: "", original_size: 0.0, compressed_size: 0.0 });
 const quality = ref(90);
 const outputPath = ref("");
-const fileData = ref([{ filename: "Example" }]);
 
 const supportedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 
