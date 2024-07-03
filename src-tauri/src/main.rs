@@ -34,9 +34,11 @@ async fn add_compress_path_list(
     path_list.par_iter().for_each(|path| {
         match compress_and_encode_image(path, quality) {
             Ok((data, original_size, compressed_size)) => {
-                let output_file_path = Path::new(&output_path)
+                let base_output_file_path = Path::new(&output_path)
                     .join(Path::new(path).file_stem().unwrap().to_str().unwrap())
                     .with_extension("webp");
+
+                let output_file_path = get_available_file_path(base_output_file_path);
                 let mut output_file = fs::File::create(output_file_path.clone()).unwrap();
                 output_file.write_all(&data).unwrap();
 
@@ -52,6 +54,23 @@ async fn add_compress_path_list(
         }
     });
     Ok(())
+}
+
+// Helper function to find an available file name by appending a number to the base name
+fn get_available_file_path(base_path: PathBuf) -> PathBuf {
+    let mut new_path = base_path.clone();
+    let mut counter = 1;
+
+    while new_path.exists() {
+        new_path = base_path.with_file_name(format!(
+            "{}-{}.{}",
+            base_path.file_stem().unwrap().to_str().unwrap(),
+            counter,
+            base_path.extension().unwrap().to_str().unwrap()
+        ));
+        counter += 1;
+    }
+    new_path
 }
 
 #[tauri::command]
