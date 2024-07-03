@@ -23,8 +23,8 @@
     "windows": [
       {
         "title": "WebP Compressor",
-        "width": 600,
-        "height": 700
+        "width": 800,
+        "height": 650
       }
     ],
     "security": {
