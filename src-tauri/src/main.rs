@@ -18,6 +18,12 @@ struct ImageResultData {
     compressed_size: usize,
 }
 
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct ImageInputData {
+    path: String,
+    tree_path: String,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 struct AppConfig {
     output_path: Option<String>,
@@ -25,20 +31,32 @@ struct AppConfig {
 
 #[tauri::command]
 async fn add_compress_path_list(
-    path_list: Vec<String>,
+    input_data_list: Vec<ImageInputData>,
     quality: f32,
     output_path: String,
+    keep_dir: bool,
     window: Window,
 ) -> Result<(), ()> {
     fs::create_dir_all(&output_path).map_err(|_| ())?;
-    path_list.par_iter().for_each(|path| {
+    input_data_list.par_iter().for_each(|image_data| {
+        let path = &image_data.path;
+        let tree_path = &image_data.tree_path;
+
         match compress_and_encode_image(path, quality) {
             Ok((data, original_size, compressed_size)) => {
-                let base_output_file_path = Path::new(&output_path)
-                    .join(Path::new(path).file_stem().unwrap().to_str().unwrap())
-                    .with_extension("webp");
+                // Determine the output file path based on keep_dir
+                let output_file_path = if keep_dir {
+                    let tree_path_buf = PathBuf::from(tree_path);
+                    let full_path = Path::new(&output_path).join(tree_path_buf.parent().unwrap());
+                    fs::create_dir_all(&full_path).unwrap(); // Ensure directory exists
+                    full_path.join(tree_path_buf.file_name().unwrap())
+                } else {
+                    Path::new(&output_path)
+                        .join(Path::new(tree_path).file_stem().unwrap().to_str().unwrap())
+                        .with_extension("webp")
+                };
 
-                let output_file_path = get_available_file_path(base_output_file_path);
+                let output_file_path = get_available_file_path(output_file_path);
                 let mut output_file = fs::File::create(output_file_path.clone()).unwrap();
                 output_file.write_all(&data).unwrap();
 
@@ -74,15 +92,16 @@ fn get_available_file_path(base_path: PathBuf) -> PathBuf {
 }
 
 #[tauri::command]
-fn get_folder_file_paths(dir_path: String) -> Result<Vec<String>, String> {
+fn get_folder_file_paths(dir_path: String) -> Result<Vec<ImageInputData>, String> {
     // 定义支持的图片文件扩展名
     let supported_extensions = ["png", "jpg", "jpeg", "gif", "webp"];
-    let mut file_paths = Vec::new();
+    let mut image_data = Vec::new();
 
     // 递归地搜索目录
     fn search_dir(
         path: PathBuf,
-        file_paths: &mut Vec<String>,
+        base_path: &PathBuf,
+        image_data: &mut Vec<ImageInputData>,
         supported_extensions: &[&str],
     ) -> Result<(), String> {
         // 检查路径是否真的是一个目录
@@ -90,21 +109,30 @@ fn get_folder_file_paths(dir_path: String) -> Result<Vec<String>, String> {
             return Err(format!("{} is not a directory", path.to_string_lossy()));
         }
 
-        match fs::read_dir(path) {
+        match fs::read_dir(&path) {
             Ok(entries) => {
                 for entry in entries {
                     let entry = entry.map_err(|e| e.to_string())?;
                     let path = entry.path();
                     if path.is_dir() {
                         // 递归调用处理子目录
-                        search_dir(path, file_paths, supported_extensions)?;
+                        search_dir(path, base_path, image_data, supported_extensions)?;
                     } else {
                         // 检查是否是文件并且扩展名是否在支持列表中
                         if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
                             if supported_extensions.contains(&ext.to_lowercase().as_str()) {
+                                // 计算相对路径
+                                let tree_path = path
+                                    .strip_prefix(base_path)
+                                    .map_err(|e| e.to_string())?
+                                    .to_string_lossy()
+                                    .to_string();
                                 // 将路径转换为字符串
                                 match path.to_str() {
-                                    Some(path_str) => file_paths.push(path_str.to_string()),
+                                    Some(path_str) => image_data.push(ImageInputData {
+                                        path: path_str.to_string(),
+                                        tree_path: tree_path,
+                                    }),
                                     None => {
                                         return Err("Failed to convert path to string".to_string())
                                     }
@@ -121,10 +149,15 @@ fn get_folder_file_paths(dir_path: String) -> Result<Vec<String>, String> {
     }
 
     // 开始递归搜索
-    let start_path = PathBuf::from(dir_path);
-    search_dir(start_path, &mut file_paths, &supported_extensions)?;
+    let start_path = PathBuf::from(&dir_path);
+    search_dir(
+        start_path.clone(),
+        &start_path,
+        &mut image_data,
+        &supported_extensions,
+    )?;
 
-    Ok(file_paths)
+    Ok(image_data)
 }
 
 #[tauri::command]

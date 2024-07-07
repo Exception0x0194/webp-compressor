@@ -14,7 +14,7 @@
                     <FolderAdd />
                 </el-icon>
                 <div class="el-upload__text">
-                    <em>点此上传文件夹内容</em>
+                    <em>点此扫描文件夹内容</em>
                 </div>
             </el-upload>
         </div>
@@ -32,6 +32,10 @@
         <div class="form-item form-item-slider">
             <span class="form-label">压缩品质</span>
             <el-slider v-model="quality" :max="100" :min="0" :step="5"></el-slider>
+        </div>
+
+        <div class="form-item">
+            <el-checkbox v-model="keepDir"><span class="form-label">保持扫描时的目录结构</span></el-checkbox>
         </div>
 
         <div class="form-item">
@@ -61,9 +65,12 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrent } from "@tauri-apps/api/webview";
 
-const files = ref<string[]>([]);
+interface inputInfo { path: string, treePath: string };
+
+const files = ref<inputInfo[]>([]);
 const loadInfo = ref({ isLoading: false, max: 100, current: 0, startTime: new Date() });
 const compressedInfo = ref({ file_name: "", original_size: 0.0, compressed_size: 0.0 });
+const keepDir = ref(false);
 const quality = ref(90);
 const outputPath = ref("");
 
@@ -89,14 +96,19 @@ async function handleFileUpload() {
     });
 
     if (res && res.length > 0) {
-        const paths = res.map((r) => r.path);
-        files.value.push(...paths);
+        const inputInfoArray = res.map(r => ({
+            path: r.path,                     // 完整的文件路径
+            treePath: r.path.split('/').pop()! // 只保留文件名
+        }));
+
+        files.value.push(...inputInfoArray); // 将这些对象推入files数组
         ElMessage({ message: `添加了 ${res.length} 份文件`, type: "success" });
     } else {
         ElMessage({ message: "未选择任何文件", type: "info" });
     }
     return false;
 }
+
 
 async function handleFolderUpload() {
     const dirPath = await open({
@@ -105,7 +117,7 @@ async function handleFolderUpload() {
     });
 
     if (dirPath && dirPath.length !== 1) {
-        const paths = await invoke('get_folder_file_paths', { dirPath: dirPath }) as string[];
+        const paths = await invoke('get_folder_file_paths', { dirPath: dirPath }) as inputInfo[];
         files.value.push(...paths);
         ElMessage({ message: `添加了 ${paths.length} 份文件`, type: "success" });
     } else {
@@ -175,18 +187,24 @@ async function compressImagesWithInvokes() {
         }
     });
 
-    invoke("add_compress_path_list", { pathList: files.value, quality: quality.value, outputPath: outputPath.value });
+    invoke("add_compress_path_list", { inputDataList: files.value, quality: quality.value, outputPath: outputPath.value, keepDir: keepDir.value });
 }
 onMounted(async () => {
     const appWindow = getCurrent();
     await appWindow.onDragDropEvent((event) => {
         if (event.payload.type === 'dropped') {
-            console.log('User dropped', event.payload.paths);
             const filteredPaths = event.payload.paths.filter(path => {
                 const extension = path.split('.').pop()!.toLowerCase();
                 return supportedExtensions.includes(extension);
             });
-            files.value.push(...filteredPaths);
+
+            // 创建包含path和treePath的结构体数组
+            const imageInputData = filteredPaths.map(path => ({
+                path: path,
+                treePath: path.split('/').pop()!  // 取最后一个元素作为treePath
+            }));
+
+            files.value.push(...imageInputData);  // 推送结构体数组到files         
             ElMessage({ message: `添加了 ${filteredPaths.length} 份文件`, type: "success" });
         }
     });
