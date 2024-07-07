@@ -56,10 +56,10 @@
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElNotification } from "element-plus";
 import { DocumentAdd, Delete, Download, FolderAdd } from "@element-plus/icons-vue";
-import { invoke } from "@tauri-apps/api/tauri";
-import { open } from '@tauri-apps/api/dialog';
+import { invoke } from "@tauri-apps/api/core";
+import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
-import { appWindow } from "@tauri-apps/api/window";
+import { getCurrent } from "@tauri-apps/api/webview";
 
 const files = ref<string[]>([]);
 const loadInfo = ref({ isLoading: false, max: 100, current: 0, startTime: new Date() });
@@ -82,15 +82,16 @@ const compressionRate = computed(() => {
 })
 
 async function handleFileUpload() {
-    const paths = await open({
+    const res = await open({
         multiple: true,
         title: "Select Images",
         filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }]
     });
 
-    if (paths && paths.length > 0) {
+    if (res && res.length > 0) {
+        const paths = res.map((r) => r.path);
         files.value.push(...paths);
-        ElMessage({ message: `添加了 ${paths.length} 份文件`, type: "success" });
+        ElMessage({ message: `添加了 ${res.length} 份文件`, type: "success" });
     } else {
         ElMessage({ message: "未选择任何文件", type: "info" });
     }
@@ -177,8 +178,9 @@ async function compressImagesWithInvokes() {
     invoke("add_compress_path_list", { pathList: files.value, quality: quality.value, outputPath: outputPath.value });
 }
 onMounted(async () => {
-    await appWindow.onFileDropEvent((event) => {
-        if (event.payload.type === 'drop') {
+    const appWindow = getCurrent();
+    await appWindow.onDragDropEvent((event) => {
+        if (event.payload.type === 'dropped') {
             console.log('User dropped', event.payload.paths);
             const filteredPaths = event.payload.paths.filter(path => {
                 const extension = path.split('.').pop()!.toLowerCase();

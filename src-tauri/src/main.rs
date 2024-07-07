@@ -8,7 +8,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
-use tauri::Window;
+use tauri::{Manager, Window};
 use webp::Encoder;
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -129,7 +129,7 @@ fn get_folder_file_paths(dir_path: String) -> Result<Vec<String>, String> {
 
 #[tauri::command]
 fn set_output_path(app_handle: tauri::AppHandle, output_path: String) -> Result<(), String> {
-    let config_dir = app_handle.path_resolver().app_config_dir().unwrap();
+    let config_dir = app_handle.path().app_config_dir().unwrap();
     std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?; // 确保配置目录存在
     let config_file_path = config_dir.join("config.json");
 
@@ -145,7 +145,7 @@ fn set_output_path(app_handle: tauri::AppHandle, output_path: String) -> Result<
 
 #[tauri::command]
 fn get_output_path(app_handle: tauri::AppHandle) -> Result<String, String> {
-    let config_dir = app_handle.path_resolver().app_config_dir().unwrap();
+    let config_dir = app_handle.path().app_config_dir().unwrap();
     let config_file_path = config_dir.join("config.json");
 
     if config_file_path.exists() {
@@ -182,6 +182,8 @@ fn greet(name: &str) -> String {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             add_compress_path_list,

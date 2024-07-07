@@ -10,7 +10,9 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@tauri-apps/api": "^1",
+    "@tauri-apps/api": "^2.0.0-beta.14",
+    "@tauri-apps/plugin-dialog": "^2.0.0-beta.6",
+    "@tauri-apps/plugin-shell": "^2.0.0-beta.7",
     "@zip.js/zip.js": "^2.7.45",
     "element-plus": "^2.7.6",
     "streamsaver": "^2.0.6",
