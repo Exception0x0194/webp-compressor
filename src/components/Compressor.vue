@@ -78,7 +78,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrent } from "@tauri-apps/api/webview";
 
-interface inputInfo { path: string, treePath: string };
+interface inputInfo { path: string, tree_path: string };
 
 const files = ref<inputInfo[]>([]);
 const loadInfo = ref({ isLoading: false, max: 100, current: 0, startTime: new Date() });
@@ -114,8 +114,8 @@ async function handleFileUpload() {
 
     if (res && res.length > 0) {
         const inputInfoArray = res.map(r => ({
-            path: r.path,                     // 完整的文件路径
-            treePath: r.path.split('/').pop()! // 只保留文件名
+            path: r.path,
+            tree_path: ""
         }));
 
         files.value.push(...inputInfoArray); // 将这些对象推入files数组
@@ -135,6 +135,7 @@ async function handleFolderUpload() {
 
     if (dirPath && dirPath.length !== 1) {
         const paths = await invoke('get_folder_file_paths', { dirPath: dirPath }) as inputInfo[];
+        console.log(paths)
         files.value.push(...paths);
         ElMessage({ message: `添加了 ${paths.length} 份文件`, type: "success" });
     } else {
@@ -218,8 +219,9 @@ onMounted(async () => {
             // 创建包含path和treePath的结构体数组
             const imageInputData = filteredPaths.map(path => ({
                 path: path,
-                treePath: path.split('/').pop()!  // 取最后一个元素作为treePath
+                tree_path: ""
             }));
+            console.log('Dropped: ', imageInputData)
 
             files.value.push(...imageInputData);  // 推送结构体数组到files         
             ElMessage({ message: `添加了 ${filteredPaths.length} 份文件`, type: "success" });

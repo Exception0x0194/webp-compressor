@@ -39,20 +39,20 @@ async fn add_compress_path_list(
 ) -> Result<(), ()> {
     fs::create_dir_all(&output_path).map_err(|_| ())?;
     input_data_list.par_iter().for_each(|image_data| {
-        let path = &image_data.path;
+        let input_path = &image_data.path;
         let tree_path = &image_data.tree_path;
 
-        match compress_and_encode_image(path, quality) {
+        match compress_and_encode_image(input_path, quality) {
             Ok((data, original_size, compressed_size)) => {
                 // Determine the output file path based on keep_dir
-                let output_file_path = if keep_dir {
+                let output_file_path = if tree_path.len() > 0 && keep_dir {
                     let tree_path_buf = PathBuf::from(tree_path);
                     let full_path = Path::new(&output_path).join(tree_path_buf.parent().unwrap());
                     fs::create_dir_all(&full_path).unwrap(); // Ensure directory exists
                     full_path.join(tree_path_buf.file_name().unwrap())
                 } else {
                     Path::new(&output_path)
-                        .join(Path::new(tree_path).file_stem().unwrap().to_str().unwrap())
+                        .join(Path::new(input_path).file_name().unwrap())
                         .with_extension("webp")
                 };
 
