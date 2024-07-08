@@ -135,7 +135,6 @@ async function handleFolderUpload() {
 
     if (dirPath && dirPath.length !== 1) {
         const paths = await invoke('get_folder_file_paths', { dirPath: dirPath }) as inputInfo[];
-        console.log(paths)
         files.value.push(...paths);
         ElMessage({ message: `添加了 ${paths.length} 份文件`, type: "success" });
     } else {
@@ -221,7 +220,6 @@ onMounted(async () => {
                 path: path,
                 tree_path: ""
             }));
-            console.log('Dropped: ', imageInputData)
 
             files.value.push(...imageInputData);  // 推送结构体数组到files         
             ElMessage({ message: `添加了 ${filteredPaths.length} 份文件`, type: "success" });
