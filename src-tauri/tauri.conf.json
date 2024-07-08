@@ -20,7 +20,12 @@
   "productName": "image-compressor",
   "version": "0.1.0",
   "identifier": "tk.exception0x0194.WebPCompressor",
-  "plugins": {},
+  "plugins": {
+    "updater": {
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhEMzc0Q0RDQ0I2NjU0REEKUldUYVZHYkwzRXczamVxRkowSVhJU3J2RlZmQmNtUWR1WlpyRHZxNEJOTmpSbXlIKzdWby83ZUEK"
+    }
+  },
   "app": {
     "security": {
       "csp": null
