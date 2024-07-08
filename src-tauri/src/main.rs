@@ -49,7 +49,9 @@ async fn add_compress_path_list(
                     let tree_path_buf = PathBuf::from(tree_path);
                     let full_path = Path::new(&output_path).join(tree_path_buf.parent().unwrap());
                     fs::create_dir_all(&full_path).unwrap(); // Ensure directory exists
-                    full_path.join(tree_path_buf.file_name().unwrap())
+                    full_path
+                        .join(tree_path_buf.file_name().unwrap())
+                        .with_extension("webp")
                 } else {
                     Path::new(&output_path)
                         .join(Path::new(input_path).file_name().unwrap())
