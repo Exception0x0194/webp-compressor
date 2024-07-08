@@ -4,11 +4,11 @@ WebP 压缩机是一个读取指定图片，将其按 WebP 重新压缩后保存
 
 - **界面展示**：
 
-   ![界面展示](docs/img/ui.png)
+   ![界面展示](docs/img/ui.webp)
 
-- **效率对比**（和格式工厂对比、输入 2001 张 png 图像，分辨率 1280x1856）：
+- **效率对比**（和格式工厂对比、输入 2001 张 png 图像，分辨率 832x1216）：
 
-   ![这就是 Rust 速度💪](docs/img/comparison.png)
+   ![这就是 Rust 速度💪](docs/img/comparison.webp)
 
 ## 功能特性
 
