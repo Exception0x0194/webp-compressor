@@ -131,7 +131,7 @@ fn get_folder_file_paths(dir_path: String) -> Result<Vec<ImageInputData>, String
                                 match path.to_str() {
                                     Some(path_str) => image_data.push(ImageInputData {
                                         path: path_str.to_string(),
-                                        tree_path: tree_path,
+                                        tree_path,
                                     }),
                                     None => {
                                         return Err("Failed to convert path to string".to_string())

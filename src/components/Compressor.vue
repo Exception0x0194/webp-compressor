@@ -1,56 +1,69 @@
 <template>
-    <div>
-        <div class="form-item-upload">
-            <el-upload class="upload-files" drag @click="handleFileUpload" disabled style="margin-right: 10px">
-                <el-icon class="el-icon--upload">
-                    <DocumentAdd />
-                </el-icon>
-                <div class="el-upload__text">
-                    拖拽图片到窗口或<em>点此上传图片</em>
-                </div>
-            </el-upload>
-            <el-upload class="upload-folder" drag @click="handleFolderUpload" disabled style="margin-left: 10px">
-                <el-icon class="el-icon--upload">
-                    <FolderAdd />
-                </el-icon>
-                <div class="el-upload__text">
-                    <em>点此扫描文件夹内容</em>
-                </div>
-            </el-upload>
-        </div>
+    <div style="display: flex;flex-direction: row;">
+        <div style="width:400px">
+            <div class="form-item-upload">
+                <el-upload class="upload-files" drag @click="handleFileUpload" disabled style="margin-right: 10px">
+                    <el-icon class="el-icon--upload">
+                        <DocumentAdd />
+                    </el-icon>
+                    <div class="el-upload__text">
+                        拖拽图片到窗口或<em>点此上传图片</em>
+                    </div>
+                </el-upload>
+                <el-upload class="upload-folder" drag @click="handleFolderUpload" disabled style="margin-left: 10px">
+                    <el-icon class="el-icon--upload">
+                        <FolderAdd />
+                    </el-icon>
+                    <div class="el-upload__text">
+                        <em>点此扫描文件夹内容</em>
+                    </div>
+                </el-upload>
+            </div>
 
-        <div class="form-item">
-            <el-button @click="clearFiles" :icon="Delete">清空文件</el-button>
-            <el-button @click="selectOutputFolder" :icon="FolderAdd">指定输出目录</el-button>
-            <el-button @click="compressImagesWithInvokes" :icon="Download">压缩并保存</el-button>
-        </div>
+            <div class="form-item">
+                <el-button @click="clearFiles" :icon="Delete">清空文件</el-button>
+                <el-button @click="selectOutputFolder" :icon="FolderAdd">指定输出目录</el-button>
+                <el-button @click="compressImagesWithInvokes" :icon="Download">压缩并保存</el-button>
+            </div>
 
-        <div class="form-item">
-            <p>输出目录：{{ outputPath.length === 0 ? "尚未选择" : outputPath }}</p>
-        </div>
+            <div class="form-item">
+                <p>输出目录：{{ outputPath.length === 0 ? "尚未选择" : outputPath }}</p>
+            </div>
 
-        <div class="form-item form-item-slider">
-            <span class="form-label">压缩品质</span>
-            <el-slider v-model="quality" :max="100" :min="0" :step="5"></el-slider>
-        </div>
+            <div class="form-item form-item-slider">
+                <span class="form-label">压缩品质</span>
+                <el-slider v-model="quality" :max="100" :min="0" :step="5"></el-slider>
+            </div>
 
-        <div class="form-item">
-            <el-checkbox v-model="keepDir"><span class="form-label">保持扫描时的目录结构</span></el-checkbox>
-        </div>
+            <div class="form-item">
+                <el-checkbox v-model="keepDir"><span class="form-label">保持扫描的目录结构</span></el-checkbox>
+            </div>
 
-        <div class="form-item">
-            <p>待处理文件数量：{{ files.length }}</p>
-        </div>
+            <div class="form-item">
+                <p>待处理文件数量：{{ files.length }}</p>
+            </div>
 
-        <div class="form-item" v-if="loadInfo.isLoading">
-            <el-progress :percentage="progressPercentage" />
-        </div>
+            <div class="form-item" v-if="loadInfo.isLoading">
+                <el-progress :percentage="progressPercentage" />
+            </div>
 
-        <div class="form-item" v-if="loadInfo.isLoading">
-            <span>处理文件：{{ compressedInfo.file_name }}</span>
-            <br>
-            <span>{{ compressedInfo.original_size.toFixed(2) }}→{{ compressedInfo.compressed_size.toFixed(2)
-                }}（{{ compressionRate }}）</span>
+            <div class="form-item" v-if="loadInfo.isLoading">
+                <span class="file-name">处理文件：{{ compressedInfo.file_name }}</span>
+                <br>
+                <span>{{ compressedInfo.original_size.toFixed(2) }}→{{ compressedInfo.compressed_size.toFixed(2)
+                    }}（{{ compressionRate }}）</span>
+            </div>
+        </div>
+        <div style="width:500px; margin-left: 30px;">
+            <el-table :data="files" stripe max-height="500">
+                <el-table-column prop="path" label="输入路径" />
+                <el-table-column label="操作" width="60">
+                    <template #default="scope">
+                        <el-button :icon="Delete" circle @click="removeFile(scope.$index)" />
+                    </template>
+                </el-table-column>
+            </el-table>
+
         </div>
     </div>
 </template>
@@ -87,6 +100,10 @@ const compressionRate = computed(() => {
         return (compressedInfo.value.compressed_size * 100 / compressedInfo.value.original_size).toFixed(2) + ' %';
     }
 })
+
+function removeFile(index: number) {
+    files.value.splice(index, 1);  // 从数组中删除指定索引的元素
+}
 
 async function handleFileUpload() {
     const res = await open({
@@ -216,7 +233,9 @@ onMounted(async () => {
 
 <style scoped>
 .form-item {
-    margin: 10px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    white-space: nowrap;
 }
 
 .form-item-upload {
@@ -241,5 +260,13 @@ onMounted(async () => {
     margin-top: 0;
     margin-left: 12px;
     width: 50%;
+}
+
+.file-name {
+    display: block;
+    max-width: 400px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 </style>
